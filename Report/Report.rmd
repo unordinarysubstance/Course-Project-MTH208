@@ -1,0 +1,306 @@
+---
+title: "Global Rankings of Universities Analysis using R Studio"
+author: "Kothuru Devi Prathyusha, Arvind Devkate, Himanshu Panwar, Aaryan Maheshwari"
+format: pdf
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+library(ggplot2)
+library(knitr)
+library(ggpubr)
+library(dplyr)
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
+```
+
+##  **[Introduction]{.underline}**
+
+-   In this analysis, we explore the global rankings of universities, examining how institutions from around the world are positioned based on various metrics. University rankings are often used by students, faculty, and policymakers to evaluate the prestige, quality of education, research capabilities, and overall global standing of universities. These rankings are compiled by different organizations, like Quacquarelli Symonds (QS) and Times Higher Education (THE) etc. and typically take into account factors such as academic reputation, research output, faculty quality, and international diversity and more. We also aim to identify how these top universities are spread across the globe and lastly, where do IITs stand in these rankings and the potential areas of their improvement.
+
+-   The dataset used for this analysis includes ranking data from **QS rankings 2025** and **Times Higher Education (THE)** rankings for the top **1000** universities of the world. Through data cleaning, transformation, and visualization techniques in R, we aim to uncover meaningful insights that help understand the dynamics of university rankings. We have also used GDP and population data of various countries, as listed by **worldometer**.
+
+Here is a sample of the finally obtained dataset of the first five Universities and Overall Ranking.
+
+```{r  echo=FALSE}
+dat <- read.csv("../ShinyApp/global_data.csv")
+dat[1:5,2:3]
+```
+
+## [**Data Scraping**]{.underline}
+
+For data scraping we used the following sites:
+
+-   [[**Times Higher Education**]{.underline}](https://www.timeshighereducation.com/sites/default/files/the_data_rankings/world_university_rankings_2024_0__91239a4509dc50911f1949984e3fb8c5.json): We used this site for scraping University Names and Female Student Ratio **(in %)**.
+
+-   [[**Top Universities**]{.underline}](https://www.topuniversities.com/rankings/endpoint?nid=3990755&page=0&items_per_page=1000&tab=indicators&region=&countries=&cities=&search=&star=&sort_by=rank&order_by=asc&program_type=&scholarship=&fee=&english_score=&academic_score=&mix_student=&loggedincache=): We used this site for scraping the following: Overall Score, Title, Country, Region, Rank, Academic Reputation, Citation per Faculty, Faculty Student Ratio, Employer Reputation, International Student Ratio, International Research Network, International Faculty Ratio and Sustainability of the QS rankings 2025.
+
+-   [[**Worldometer**]{.underline}](https://www.worldometers.info/gdp/gdp-by-country/%22): We used this site for scraping the following: Countries, GDP, and Population.
+
+## [**Data Cleaning and Transformation**]{.underline}
+
+-   Firstly, to compile all the data obtained into a single dataset, we had to **rename** some columns and country names (for example, from China(Mainland) to China) so that all datasets were compatible with each other.
+
+-   Then we **merged** the data about female student ratio from THE rankings data into the QS rankings data. In this task, there were some missing values, as the female student ratio data was not exhaustive. So we **replaced** the null values by the **median** of the other obtained values.
+
+-   Lastly, we found out the **GDP per capita** data by dividing the gross GDP and population of each country. Then we **scaled** the GDP per Capita data on a scale of 0-100 so as to compare this with the scores of other columns, all of which were scored out of 100. For this we firstly applied a **log** transformation and then **linearly** scaled these values.
+
+## [**Potential Biases in the Data**]{.underline}
+
+Here are some potential biases that we think could have been in our data:
+
+-   [**Regional Bias**]{.underline}: QS and other ranking systems can favor universities in certain regions, often Western countries. This can result from differences in funding, research output visibility, and the resources available to institutions in wealthier regions.
+
+-   [**Alumni Outcomes and Employability**]{.underline}: Rankings that consider employment outcomes and salary levels post-graduation may favor universities in countries with stronger job markets, thereby skewing the ranking toward institutions in these locations.
+
+-   [**Temporal Bias**]{.underline}: QS Rankings and others may not account fully for recent changes, improvements, or declines in universities, as reputation and citation data can take years to reflect the current status of a university.
+
+-   [**Exclusion of Smaller or Less Prestigious Institutions**]{.underline}: By focusing only on the top 1000, the rankings may have inherently excluded universities that might excel in specific areas or serve unique communities but don’t rank highly overall. This can our analysis by highlighting the features of already well-established institutions while overlooking smaller or newer universities that might offer high-quality education and innovation in certain fields.
+
+## [**Questions to ask from the data**]{.underline}
+
+Here are some interesting questions that could be asked from the data:
+
+-   What is the geographical spread of the top 1000 universities of the world?
+
+-   How do different parameters such as academic reputation, employer reputation ,international student ratio etc. affect ranking and what are their general trends with rank?
+
+-   How does GDP and population of a country influence the ranking of its top universities?
+
+-   What is the composition of female students across top universities?
+
+## [**Important Visualizations**]{.underline}
+
+-   [**Number of Universities v/s Country graph, colored by region**]{.underline}
+
+    A country-wise number of universities graph provides a visual comparison of the number of higher education institutions across different nations. It is also coloured by the regions of the countries.
+
+    As we can see, countries like **United States**, **United Kingdom** and **China** have a higher number of universities, with the U.S. leading globally with 100+ institutions out of the top 1000. Also, notably, countries from all regions are present among the top countries except from the **African** region. This shows that the quality of university in Africa tends to be worse than the quality of their counterparts from other regions of the world.
+
+```{r  echo=FALSE}
+#Creating Data Frame
+global_data <- read.csv("../ShinyApp/global_data.csv")
+Rankings <- get(load('../Data/QS_Rankings.Rdata'))
+Ratio <- get(load('../Data/Times_Rankings.Rdata'))
+Rankings$Country = replace(Rankings$Country, Rankings$Country == "China (Mainland)", "China")
+Rankings$Country = replace(Rankings$Country, Rankings$Country == "Hong Kong SAR", "Hong Kong")
+Rankings$Country = replace(Rankings$Country, Rankings$Country == "Macau SAR", "Macao")
+Region <- sort(unique(global_data$Region))
+country_counts <- Rankings %>%
+      count(Country, sort = TRUE) %>%
+      rename(Count = n)
+country_counts <- country_counts %>%
+      left_join(Rankings %>% select(Country, Region) %>% distinct(Country, Region), by = "Country")
+
+#Plot for Countries and Number of Universities per Region 
+ggplot(country_counts, aes(y = reorder(Country, Count), x = Count, fill = Region)) +
+        geom_bar(stat = "identity") +
+        labs(y = "Country", x = "Number of Universities", 
+             title = "Number of Universities by Country (All Regions)") +
+        theme_minimal() +
+        theme(axis.text.x = element_text(size = 5, hjust = 1, vjust = 0.5)) + 
+        theme(axis.text.y = element_text(size = 3.5))+theme(legend.text = element_text(size =6), legend.title = element_text(size =7) , legend.key.size = unit(0.5,"line")) +
+        scale_fill_brewer(palette = "Set2")
+```
+
+-   [**Academic Reputation vs Rank Plot**]{.underline}
+
+    As we can see that the trend is **decreasing** with increase in rank. This means the two variables Rank and Academic Reputation have a **highly negative correlation**.
+
+```{r echo=FALSE}
+global_data <- read.csv("../ShinyApp/global_data.csv")
+ggplot(global_data, aes(x = Rank, y = Academic.Reputation)) +
+    geom_point(color = "blue") +  # Scatter plot points with blue color
+    labs(title = "Scatter Plot of Rank vs Academic Reputation", 
+         x = "Rank", 
+         y = "Academic Reputation") +
+    theme_minimal()
+```
+
+-   [**Citations per Faculty vs Rank Plot, with top 5 IITs coloured in red**]{.underline}
+
+    We can see that overall there is a **decreasing** trend, but there are many **outliers**. This suggests that in lower ranked universities, even if their overall ranking is low, citations per faculty can be high. This implies that there are some labs in these universities with considerable research output but **other labs lag behind**, leading to high citations but low overall score. We believe this is also the case with **IITs** in general, as can be observed (IITB, IITD, IITK, IITM, IITKGP are coloured in red.)
+
+```{r echo=FALSE}
+#Creating Data Frame
+global_data <- read.csv("../ShinyApp/global_data.csv")
+
+global_data$Color <- ifelse(global_data$Title %in% c("Indian Institute of Technology Bombay (IITB)",
+                                                          "Indian Institute of Technology Kharagpur (IIT-KGP)",
+                                                          "Indian Institute of Technology Delhi (IITD)",
+                                                          "Indian Institute of Technology Kanpur (IITK)",
+                                                          "Indian Institute of Technology Madras (IITM)"),
+                            "IITs", "Other")
+
+
+#Scatter Plot of Rank and Internatiional Research Network
+ggplot(global_data, aes(x = Rank, y = Citations.per.Faculty, color = Color)) +
+  geom_point() +  # Scatter plot points
+  labs(title = "Scatter Plot of Rank vs Citations per Faculty", 
+       x = "Rank", 
+       y = "Citations per Faculty", 
+       color = "University") +
+  scale_color_manual(values = c("IITs" = "red", "Other" = "blue")) +  # Color IITs in red and others in blue
+  theme_minimal()
+```
+
+-   [**Employer Reputation vs Rank plot, top 5 IITs colored in red**]{.underline}
+
+    Here also there is an overall **decreasing** trend but many **outliers**. This suggests that some brilliant students, though are very talented, cannot obtain admissions to top universities but prove to be excellent employees, as is shown by high employer reputation. We believe **IITs** have a similar status.
+
+```{r echo=FALSE}
+#Creating Data Frame
+global_data <- read.csv("../ShinyApp/global_data.csv")
+global_data$Color <- ifelse(global_data$Title %in% c("Indian Institute of Technology Bombay (IITB)",
+                                                          "Indian Institute of Technology Kharagpur (IIT-KGP)",
+                                                          "Indian Institute of Technology Delhi (IITD)",
+                                                          "Indian Institute of Technology Kanpur (IITK)",
+                                                          "Indian Institute of Technology Madras (IITM)"),
+                            "IITs", "Other")
+
+
+#Scatter Plot of Rank and Internatiional Research Network
+ggplot(global_data, aes(x = Rank, y = Employer.Reputation, color = Color)) +
+  geom_point() +  # Scatter plot points
+  labs(title = "Scatter Plot of Rank vs Employer Reputation", 
+       x = "Rank", 
+       y = "Employer Reputation", 
+       color = "University") +
+  scale_color_manual(values = c("IITs" = "red", "Other" = "blue")) +  # Color IITs in red and others in blue
+  theme_minimal()
+```
+
+-   [**International Student Ratio vs Rank, with IITs coloured in red**]{.underline}
+
+    We can see that all 5 IITs have a **very poor score** with respect to top ranked universities. This suggests an **area of improvement** to boost the rankings of our premier institutes. A similar observation is obtained when we plot **international student ratio** with rank.
+
+```{r echo=FALSE}
+global_data <- read.csv("../ShinyApp/global_data.csv")
+
+# Create a new column to color specific IITs in red
+global_data$Color <- ifelse(global_data$Title %in% c("Indian Institute of Technology Bombay (IITB)",
+                                                          "Indian Institute of Technology Kharagpur (IIT-KGP)",
+                                                          "Indian Institute of Technology Delhi (IITD)",
+                                                          "Indian Institute of Technology Kanpur (IITK)",
+                                                          "Indian Institute of Technology Madras (IITM)"),
+                            "IITs", "Other")
+# Create the scatter plot with conditional coloring
+ggplot(global_data, aes(x = Rank, y = International.Student.Ratio, color = Color)) +
+  geom_point() +  # Scatter plot points
+  labs(title = "Scatter Plot of Rank vs International Student Ratio", 
+       x = "Rank", 
+       y = "International Student Ratio", 
+       color = "University") +
+  scale_color_manual(values = c("IITs" = "red", "Other" = "blue")) +  # Color IITs in red and others in blue
+  theme_minimal()
+```
+
+-   [**Average University Ranking Vs GDP Per Capita Plot**]{.underline}
+
+    We have plotted the Country and the GDP Per Capita (by firstly creating a dataframe) in the order of the Ranking of the Universities. We can see the Average ranking of the University of each Country is decreasing, the GDP is also decreasing.
+
+```{r  echo=FALSE}
+#Creating the Data Frame for GDP.
+global_data <- read.csv("../ShinyApp/global_data.csv")
+logGDP <- global_data$GDPperCapita
+dataGDP <- data.frame(
+  Rank = global_data$Rank,
+  Country = global_data$Country,
+  GDP = logGDP
+)
+
+#Getting the Average rank.
+Rank <- global_data %>%
+  group_by(Country) %>%
+  summarize(AverageRank = mean(Rank, na.rm = TRUE))
+
+#Creating the Data Frame for Average Rank.
+dataRank <- data.frame(
+  Country = unique(global_data$Country),
+  AvgRank = sort(Rank$AverageRank)
+)
+
+data <- data.frame(
+  Country = dataGDP[1:5,2],
+  GDP = dataGDP[1:5,3],
+  AvgRank = dataRank[1:5,2]
+)
+kable(data, col.names = c("Country","GDP","Average Rank"))
+
+```
+
+```{r  echo=FALSE}
+#Bar Plot of Country and Log GDP.
+ggbarplot(dataGDP,x = "Country" ,y ="GDP",
+          x.text.angle = 90,
+          color = "#663399",
+          fill = "#663399",
+          xlab = "Country",
+          ylab = "GDP Per Capita") + font("x.text", size = 5) + font("y.text", size = 5.5)
+```
+
+-   [**Plot for Country and the Average Rank of University for each Country.**]{.underline}
+
+    We can see there is a direct correlation with the GDP and the Average Rank of the Universities for each Country.
+
+```{r  echo=FALSE}
+#Line plot for Country and Average Rank.
+ggline(dataRank, x = "Country", y="AvgRank",
+          x.text.angle =90,
+          color = "#663399",
+          fill = "#663399",
+          xlab = "Country",
+          ylab = "Rank") + scale_y_reverse() + font("x.text", size = 5) + font("y.text", size = 5.5)
+```
+
+```{r  echo=FALSE}
+#Creating Data Frame
+global_data <- read.csv("../ShinyApp/global_data.csv")
+data <- data.frame(
+  Rank = global_data$Rank[1:50],
+  Title = global_data$Title[1:50],
+  Overall = global_data$Overall[1:50],
+  Country = global_data$Country[1:50],
+  Region = global_data$Region[1:50],
+  AR = global_data$Academic.Reputation[1:50],
+  CPF = global_data$Citations.per.Faculty[1:50],
+  FSR = global_data$Faculty.Student.Ratio[1:50],
+  ER = global_data$Employer.Reputation[1:50],
+  ISR = global_data$International.Student.Ratio[1:50],
+  Sustainability = global_data$Sustainabilty[1:50],
+  GDP = global_data$GDPperCapita[1:50],
+  FemaleStudentRatio =  replace(global_data$FemaleStudentRatio[1:50], is.na(global_data$FemaleStudentRatio[1:50]), 0)
+)
+
+
+```
+
+-   [**Density Plot for Female Student Ratio for the first 50 Universities**]{.underline}
+
+    Here we can see the data is mostly scattered, but there is a huge **peak** at around 55%. This means there is a high percentage of females in the top 50 universities. This fact is correlated to the fact that most top 50 universities are from **North America** and **Europe**, which are more favourable places for women in STEM, as compared to other regions.
+
+```{r  echo=FALSE}
+#Density Plot of Female Student Ratio.
+ggdensity(data, x = "FemaleStudentRatio",
+          add = "mean", rug = TRUE,
+          color = "purple", fill = "lightblue",
+          palette = "blue",
+          ylab = "Density"
+)
+
+```
+
+## [**Final Conclusions**]{.underline}
+
+-   Most top universities of the world are concentrated in a few countries (viz. USA and UK). African universities lack severely in quality and are in no competition to their american or european counterparts. This also represents the fact that larger and well-funded institutions typically perform better in rankings, as they have more resources for research, faculty hiring, and infrastructure. Smaller universities with fewer resources can struggle to meet the same benchmarks, regardless of quality.
+
+-   Rankings give more weight to academic and employer reputation. There are many outliers though, which have high academic and employer reputation but still have poor ranking due to their low scores in other categories. It is also interesting to note that this reputation-bias can overshadow newer universities or those with regional influence, potentially distorting perceptions of quality and impact.
+
+-   For IITs to improve their rankings, they should increase their focus on parameters such as international student ratio and international faculty ratio, as both of these prove to be detrimental to the overall ranking of our prestigious institutions. These can be achieved by increasing exchange programmes and enabling cross country collaboration, etc.
+
+## [**References**]{.underline}
+
+-   [Times Higher Education](https://www.timeshighereducation.com/sites/default/files/the_data_rankings/world_university_rankings_2024_0__91239a4509dc50911f1949984e3fb8c5.json).
+
+-   [Top Universities](https://www.topuniversities.com/rankings/endpoint?nid=3990755&page=0&items_per_page=1000&tab=indicators&region=&countries=&cities=&search=&star=&sort_by=rank&order_by=asc&program_type=&scholarship=&fee=&english_score=&academic_score=&mix_student=&loggedincache=).
+
+-   [Worldometer](https://www.worldometers.info/gdp/gdp-by-country/%22).
